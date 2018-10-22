@@ -1,0 +1,1 @@
+Calculates the stock/bond ratio of your avanza portfolio.

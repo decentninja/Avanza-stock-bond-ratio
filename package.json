@@ -1,0 +1,7 @@
+{
+  "name": "avanza-additional-analysis",
+  "version": "1.0.0",
+  "dependencies": {
+    "avanza": "^2.0.0"
+  }
+}
