@@ -13,6 +13,7 @@ if (process.argv[2] === "totp") {
 
 if (process.argv[2] == "positions") {
     let Avanza = require('avanza')
+    const util = require('util')
     const avanza = new Avanza()
 
     avanza.authenticate({
@@ -21,7 +22,28 @@ if (process.argv[2] == "positions") {
         password: process.argv[5]
     }).then(async () => {
         const positions = await avanza.getPositions()
-        console.log(positions)
+        console.log(util.inspect(positions, {showHidden: false, depth: null}))
+        process.exit()
+    }).catch((e) => {
+        console.error(e)
+        process.exit()
+    })
+}
+
+if (process.argv[2] == "instrumentest") {
+    let Avanza = require('avanza')
+    const util = require('util')
+    const avanza = new Avanza()
+
+    avanza.authenticate({
+        totpSecret: process.argv[3],
+        username: process.argv[4],
+        password: process.argv[5]
+    }).then(async () => {
+        const positions = await avanza.getInstrument("FUND", "471796")
+        // keyRatios
+        //     type: 'Aktiefond',
+        console.log(util.inspect(positions, {showHidden: false, depth: null}))
         process.exit()
     }).catch((e) => {
         console.error(e)
