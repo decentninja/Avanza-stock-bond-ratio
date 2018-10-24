@@ -1,21 +1,40 @@
-use std::process::Command;
-use std::io::{self, Write};
+use std::process::{Command, Child, Stdio};
+use std::io::{self, Write, BufReader, BufRead};
 use std::env;
 extern crate rpassword;
 
 
+struct Auth {
+    totp: String,
+    username: String,
+    password: String,
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let (totp, username, password) = if args.len() == 5 && args[1] == "auth" {
-        (args[2].clone(), args[3].clone(), args[4].clone())
+    let auth = if args.len() == 5 && args[1] == "auth" {
+        Auth {
+            totp: args[2].clone(),
+            username: args[3].clone(),
+            password: args[4].clone() 
+        }
     } else {
         auth()
     };
-    let positions = avanza_positions(&totp, &username, &password);
-    println!("Positions: {:#?}", positions);
+    let mut child = avanza_talk(&auth).unwrap();
+    println!("{}", talk_command(&mut child));
 }
 
-fn auth() -> (String, String, String) {
+// TODO: Replace string return value with parsed json
+fn talk_command(child: &mut Child) -> String {
+    child.stdin.as_mut().unwrap().write_all("getpositions\n".as_bytes()).unwrap();
+    let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
+    let mut buf = String::new();
+    stdout.read_line(&mut buf).unwrap();
+    buf
+}
+
+fn auth() -> Auth {
     let first_time = prompt("Is this your first time using this application (y/n)");
     let totp = if first_time == "y" {
         let help_message = r#"
@@ -37,17 +56,16 @@ fn auth() -> (String, String, String) {
     };
     let username = prompt("Username");
     let password = prompt_hidden("Password");
-    (totp, username, password)
+    Auth {
+        totp,
+        username,
+        password
+    }
 }
 type AvanzaResult = Result<String, String>;
 
 fn avanza_totp_secret(totp: &str) -> AvanzaResult {
     avanza_command("totp", vec![totp])
-}
-
-fn avanza_positions(totp: &str, username: &str, password: &str) -> AvanzaResult {
-    avanza_totp_secret(&totp).unwrap();
-    avanza_command("positions", vec![totp, username, password])
 }
 
 fn avanza_command(command: &str, arguments: Vec<&str>) -> AvanzaResult {
@@ -62,6 +80,15 @@ fn avanza_command(command: &str, arguments: Vec<&str>) -> AvanzaResult {
         return Err(err)
     }
     Ok(String::from_utf8(result.stdout).expect("Unicode lol"))
+}
+
+fn avanza_talk(auth: &Auth) -> Result<Child, std::io::Error> {
+    avanza_totp_secret(&auth.totp).unwrap();
+    Command::new("node")
+        .args(&["index.js", "talk", &auth.totp, &auth.username, &auth.password])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
 }
 
 fn prompt(what: &str) -> String {
