@@ -1,9 +1,9 @@
-use std::process::{Command, Child, Stdio};
-use std::io::{self, Write, BufReader, BufRead};
+use std::collections::HashMap;
 use std::env;
+use std::io::{self, BufRead, BufReader, Write};
+use std::process::{Child, Command, Stdio};
 extern crate rpassword;
 extern crate serde_json;
-
 
 struct Auth {
     totp: String,
@@ -17,17 +17,76 @@ fn main() {
         Auth {
             totp: args[2].clone(),
             username: args[3].clone(),
-            password: args[4].clone() 
+            password: args[4].clone(),
         }
     } else {
         auth()
     };
+    let stats = calculate_stats(&auth).unwrap();
+    println!("{}", stats.format());
+}
+
+#[derive(Default)]
+struct Stats {
+    types: HashMap<String, f64>,
+}
+
+impl Stats {
+    fn format(&self) -> String {
+        let total: f64 = self.types.values().sum();
+        let lines = self.types
+            .iter()
+            .map(|(name, value)| {
+                format!(
+                    "{:10}  {:>10.1}  {:>4.1}%",
+                    name,
+                    value,
+                    100. * value / total
+                )
+            }).collect::<Vec<String>>()
+            .join("\n");
+        format!(
+            "Your portfolio consists of\n{}\nTotal: {:>10.1}",
+            lines, total
+        )
+    }
+
+    fn track(&mut self, name: String, value: f64) {
+        *self.types.entry(name).or_default() += value;
+    }
+}
+
+fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
     let mut child = avanza_talk(&auth).unwrap();
-    println!("Talk got back: {}", talk_command(&mut child));
+    let positions = talk_command(&mut child, &["getpositions"])?;
+    let mut stats = Stats::default();
+    for category in positions["instrumentPositions"].as_array().unwrap() {
+        match category["instrumentType"].as_str().unwrap() {
+            "STOCK" => {
+                for position in category["positions"].as_array().unwrap() {
+                    let value = position["value"].as_str().unwrap().parse::<f64>().unwrap();
+                    stats.track("stock".to_string(), value);
+                }
+            }
+            "FUND" => {
+                for position in category["positions"].as_array().unwrap() {
+                    let value = position["value"].as_str().unwrap().parse::<f64>().unwrap();
+                    let orderbookid = position["orderbookId"].as_str().unwrap();
+                    let instrument = talk_command(&mut child, &["getinstrument", orderbookid])?;
+                    stats.track(instrument["type"].as_str().unwrap().to_string(), value);
+                }
+            }
+            instrument_type => eprintln!("Not handled case {}", instrument_type),
+        }
+    }
+    Ok(stats)
 }
 
 // TODO: Replace string return value with parsed json
-fn talk_command(child: &mut Child) -> Result<serde_json::Value, serde_json::Value> {
+fn talk_command(
+    child: &mut Child,
+    arguments: &[&str],
+) -> Result<serde_json::Value, serde_json::Value> {
     let mut buf = String::new();
     let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
     stdout.read_line(&mut buf).unwrap();
@@ -35,10 +94,18 @@ fn talk_command(child: &mut Child) -> Result<serde_json::Value, serde_json::Valu
         eprintln!("Node not ready?");
     }
     buf.clear();
-    child.stdin.as_mut().unwrap().write_all("getpositions\n".as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(format!("{}\n", arguments.join(" ")).as_bytes())
+        .unwrap();
     stdout.read_line(&mut buf).unwrap();
-    let result = serde_json::from_str(&buf).unwrap();
-    if result.get("type")
+    let mut result: serde_json::Value = serde_json::from_str(&buf).unwrap();
+    match result["type"].as_str().unwrap() {
+        "error" => Err(result["description"].take()),
+        _ => Ok(result["result"].take()),
+    }
 }
 
 fn auth() -> Auth {
@@ -54,9 +121,12 @@ fn auth() -> Auth {
         println!("{}", help_message);
         let totp = prompt("TOTP");
         let totp_code = avanza_totp_secret(&totp).unwrap().trim().to_string();
-        println!(r#"
+        println!(
+            r#"
 7. Copy {} into the "Fyll i engångskoden från appen." field.
-8. Your done!"#, totp_code);
+8. Your done!"#,
+            totp_code
+        );
         totp
     } else {
         prompt("TOTP")
@@ -66,25 +136,19 @@ fn auth() -> Auth {
     Auth {
         totp,
         username,
-        password
+        password,
     }
 }
 type AvanzaResult = Result<String, String>;
 
 fn avanza_totp_secret(totp: &str) -> AvanzaResult {
-    avanza_command("totp", vec![totp])
-}
-
-fn avanza_command(command: &str, arguments: Vec<&str>) -> AvanzaResult {
-    let mut arguments = arguments;
-    arguments.insert(0, "index.js");
-    arguments.insert(1, command);
     let result = Command::new("node")
-        .args(arguments.as_slice())
-        .output().expect("Executable to exist");
+        .args(&["index.js", "totp", totp])
+        .output()
+        .expect("Executable to exist");
     let err = String::from_utf8(result.stderr).expect("Unicode lol");
-    if err.len() != 0 {
-        return Err(err)
+    if !err.is_empty() {
+        return Err(err);
     }
     Ok(String::from_utf8(result.stdout).expect("Unicode lol"))
 }
@@ -92,8 +156,13 @@ fn avanza_command(command: &str, arguments: Vec<&str>) -> AvanzaResult {
 fn avanza_talk(auth: &Auth) -> Result<Child, std::io::Error> {
     avanza_totp_secret(&auth.totp).unwrap();
     Command::new("node")
-        .args(&["index.js", "talk", &auth.totp, &auth.username, &auth.password])
-        .stdin(Stdio::piped())
+        .args(&[
+            "index.js",
+            "talk",
+            &auth.totp,
+            &auth.username,
+            &auth.password,
+        ]).stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
 }
@@ -110,6 +179,5 @@ fn prompt_hidden(what: &str) -> String {
     let message = format!("{}: ", what);
     let password = rpassword::prompt_password_stdout(&message);
     // If rpassword can't hide the password, just prompt like normal.
-    let password = password.unwrap_or_else(|_| prompt("Password"));
-    password
+    password.unwrap_or_else(|_| prompt("Password"))
 }
