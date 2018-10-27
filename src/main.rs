@@ -2,6 +2,7 @@ use std::process::{Command, Child, Stdio};
 use std::io::{self, Write, BufReader, BufRead};
 use std::env;
 extern crate rpassword;
+extern crate serde_json;
 
 
 struct Auth {
@@ -22,16 +23,22 @@ fn main() {
         auth()
     };
     let mut child = avanza_talk(&auth).unwrap();
-    println!("{}", talk_command(&mut child));
+    println!("Talk got back: {}", talk_command(&mut child));
 }
 
 // TODO: Replace string return value with parsed json
-fn talk_command(child: &mut Child) -> String {
-    child.stdin.as_mut().unwrap().write_all("getpositions\n".as_bytes()).unwrap();
-    let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
+fn talk_command(child: &mut Child) -> Result<serde_json::Value, serde_json::Value> {
     let mut buf = String::new();
+    let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
     stdout.read_line(&mut buf).unwrap();
-    buf
+    if buf.trim() != "ready" {
+        eprintln!("Node not ready?");
+    }
+    buf.clear();
+    child.stdin.as_mut().unwrap().write_all("getpositions\n".as_bytes()).unwrap();
+    stdout.read_line(&mut buf).unwrap();
+    let result = serde_json::from_str(&buf).unwrap();
+    if result.get("type")
 }
 
 fn auth() -> Auth {

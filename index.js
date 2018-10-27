@@ -15,7 +15,8 @@ switch(process.argv[2]) {
     case "talk":
         const rl = readline.createInterface({
             input: process.stdin,
-            output: process.stdout
+            output: process.stdout,
+            terminal: false,
         });
         const avanza = new Avanza()
         if(process.argv.length != 6) {
@@ -32,6 +33,7 @@ switch(process.argv[2]) {
                 const raw_result = JSON.stringify(result)
                 console.log(raw_result)
             })
+            console.log("ready")
         }).catch((e) => {
             console.error(e)
             process.exit()

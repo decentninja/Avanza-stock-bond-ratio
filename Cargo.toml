@@ -5,3 +5,4 @@ authors = ["andreas"]
 
 [dependencies]
 rpassword = "2.0.0"
+serde_json = "1.0.32"
