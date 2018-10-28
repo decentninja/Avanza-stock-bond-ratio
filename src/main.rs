@@ -38,7 +38,7 @@ impl Stats {
             .iter()
             .map(|(name, value)| {
                 format!(
-                    "{:10}  {:>10.1}  {:>4.1}%",
+                    "{:13}: {:>13.1}  {:>4.1}%",
                     name,
                     value,
                     100. * value / total
@@ -46,8 +46,8 @@ impl Stats {
             }).collect::<Vec<String>>()
             .join("\n");
         format!(
-            "Your portfolio consists of\n{}\nTotal: {:>10.1}",
-            lines, total
+            "Your portfolio consists of\n{}\n{:13}: {:>13.1}",
+            "Total", lines, total
         )
     }
 
@@ -60,12 +60,13 @@ fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
     let mut child = avanza_talk(&auth).unwrap();
     let positions = talk_command(&mut child, &["getpositions"])?;
     let mut stats = Stats::default();
+    let mut not_supported = Vec::new();
     for category in positions["instrumentPositions"].as_array().unwrap() {
         match category["instrumentType"].as_str().unwrap() {
             "STOCK" => {
                 for position in category["positions"].as_array().unwrap() {
                     let value = position["value"].as_f64().unwrap();
-                    stats.track("stock".to_string(), value);
+                    stats.track("Aktier".to_string(), value);
                 }
             }
             "FUND" => {
@@ -76,8 +77,11 @@ fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
                     stats.track(instrument["type"].as_str().unwrap().to_string(), value);
                 }
             }
-            instrument_type => eprintln!("Not handled case {}", instrument_type),
+            instrument_type => not_supported.push(instrument_type)
         }
+    }
+    if !not_supported.is_empty() {
+        println!("NOTE: The application only counts STOCK and FUND instruments, not {}.", not_supported.join(", "));
     }
     Ok(stats)
 }
