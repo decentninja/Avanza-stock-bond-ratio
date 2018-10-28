@@ -3,6 +3,7 @@ use std::env;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
 extern crate rpassword;
+#[macro_use]
 extern crate serde_json;
 
 struct Auth {
@@ -58,7 +59,7 @@ impl Stats {
 }
 
 fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
-    let mut child = avanza_talk(&auth).unwrap();
+    let mut child = avanza_talk(&auth).map_err(|e| json!(e))?;
     let positions = talk_command(&mut child, &["getpositions"])?;
     let mut stats = Stats::default();
     let mut not_supported = Vec::new();
@@ -142,9 +143,8 @@ fn auth() -> Auth {
         password,
     }
 }
-type AvanzaResult = Result<String, String>;
 
-fn avanza_totp_secret(totp: &str) -> AvanzaResult {
+fn avanza_totp_secret(totp: &str) -> Result<String, String> {
     let result = Command::new("node")
         .args(&["index.js", "totp", totp])
         .output()
@@ -156,8 +156,8 @@ fn avanza_totp_secret(totp: &str) -> AvanzaResult {
     Ok(String::from_utf8(result.stdout).expect("Unicode lol"))
 }
 
-fn avanza_talk(auth: &Auth) -> Result<Child, std::io::Error> {
-    avanza_totp_secret(&auth.totp).unwrap();
+fn avanza_talk(auth: &Auth) -> Result<Child, String> {
+    avanza_totp_secret(&auth.totp)?;
     let mut child = Command::new("node")
         .args(&[
             "index.js",
@@ -167,13 +167,18 @@ fn avanza_talk(auth: &Auth) -> Result<Child, std::io::Error> {
             &auth.password,
         ]).stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn()?;
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to run nodejs!");
     {
         let mut buf = String::new();
         let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
         stdout.read_line(&mut buf).unwrap();
         if buf.trim() != "ready" {
-            eprintln!("Node not ready?");
+            buf.clear();
+            let mut stderr = BufReader::new(child.stderr.as_mut().unwrap());
+            stderr.read_line(&mut buf).unwrap();
+            return Err(buf);
         }
     }
     Ok(child)
