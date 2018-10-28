@@ -34,11 +34,12 @@ struct Stats {
 impl Stats {
     fn format(&self) -> String {
         let total: f64 = self.types.values().sum();
-        let lines = self.types
+        let lines = self
+            .types
             .iter()
             .map(|(name, value)| {
                 format!(
-                    "{:13}: {:>13.1}  {:>4.1}%",
+                    "{:13} {:>13.1}  {:>4.1}%",
                     name,
                     value,
                     100. * value / total
@@ -46,8 +47,8 @@ impl Stats {
             }).collect::<Vec<String>>()
             .join("\n");
         format!(
-            "Your portfolio consists of\n{}\n{:13}: {:>13.1}",
-            "Total", lines, total
+            "Your portfolio consists of\n{}\n{:13} {:>13.1}",
+            lines, "Total", total
         )
     }
 
@@ -73,15 +74,19 @@ fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
                 for position in category["positions"].as_array().unwrap() {
                     let value = position["value"].as_f64().unwrap();
                     let orderbookid = position["orderbookId"].as_str().unwrap();
-                    let instrument = talk_command(&mut child, &["getinstrument", "FUND", orderbookid])?;
+                    let instrument =
+                        talk_command(&mut child, &["getinstrument", "FUND", orderbookid])?;
                     stats.track(instrument["type"].as_str().unwrap().to_string(), value);
                 }
             }
-            instrument_type => not_supported.push(instrument_type)
+            instrument_type => not_supported.push(instrument_type),
         }
     }
     if !not_supported.is_empty() {
-        println!("NOTE: The application only counts STOCK and FUND instruments, not {}.", not_supported.join(", "));
+        println!(
+            "NOTE: The application only counts STOCK and FUND instruments, not {}.",
+            not_supported.join(", ")
+        );
     }
     Ok(stats)
 }
