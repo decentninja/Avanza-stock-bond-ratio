@@ -64,15 +64,15 @@ fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
         match category["instrumentType"].as_str().unwrap() {
             "STOCK" => {
                 for position in category["positions"].as_array().unwrap() {
-                    let value = position["value"].as_str().unwrap().parse::<f64>().unwrap();
+                    let value = position["value"].as_f64().unwrap();
                     stats.track("stock".to_string(), value);
                 }
             }
             "FUND" => {
                 for position in category["positions"].as_array().unwrap() {
-                    let value = position["value"].as_str().unwrap().parse::<f64>().unwrap();
+                    let value = position["value"].as_f64().unwrap();
                     let orderbookid = position["orderbookId"].as_str().unwrap();
-                    let instrument = talk_command(&mut child, &["getinstrument", orderbookid])?;
+                    let instrument = talk_command(&mut child, &["getinstrument", "FUND", orderbookid])?;
                     stats.track(instrument["type"].as_str().unwrap().to_string(), value);
                 }
             }
@@ -82,18 +82,12 @@ fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
     Ok(stats)
 }
 
-// TODO: Replace string return value with parsed json
 fn talk_command(
     child: &mut Child,
     arguments: &[&str],
 ) -> Result<serde_json::Value, serde_json::Value> {
     let mut buf = String::new();
     let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
-    stdout.read_line(&mut buf).unwrap();
-    if buf.trim() != "ready" {
-        eprintln!("Node not ready?");
-    }
-    buf.clear();
     child
         .stdin
         .as_mut()
@@ -155,7 +149,7 @@ fn avanza_totp_secret(totp: &str) -> AvanzaResult {
 
 fn avanza_talk(auth: &Auth) -> Result<Child, std::io::Error> {
     avanza_totp_secret(&auth.totp).unwrap();
-    Command::new("node")
+    let mut child = Command::new("node")
         .args(&[
             "index.js",
             "talk",
@@ -164,7 +158,16 @@ fn avanza_talk(auth: &Auth) -> Result<Child, std::io::Error> {
             &auth.password,
         ]).stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn()
+        .spawn()?;
+    {
+        let mut buf = String::new();
+        let mut stdout = BufReader::new(child.stdout.as_mut().unwrap());
+        stdout.read_line(&mut buf).unwrap();
+        if buf.trim() != "ready" {
+            eprintln!("Node not ready?");
+        }
+    }
+    Ok(child)
 }
 
 fn prompt(what: &str) -> String {
