@@ -4,7 +4,6 @@
 */
 
 let Avanza = require('avanza')
-const util = require('util')
 const readline = require('readline')
 
 switch(process.argv[2]) {
@@ -48,21 +47,18 @@ switch(process.argv[2]) {
 
 async function handle_line_input(avanza, input) {
     const parts = input.split(' ')
-    let result = error("Unrecognizable command")
     if (parts.length == 0) return
     switch (parts[0]) {
         case "getpositions":
-            result = ok(await avanza.getPositions())
-            break;
+            return ok(await avanza.getPositions())
         case "getinstrument":
             if (parts.length != 3)
-                result = error("Not enought arguments!")
-            result = ok(await avanza.getInstrument(parts[1], parts[2]))
-            break;
+                return error("Not enought arguments!")
+            return ok(await avanza.getInstrument(parts[1], parts[2]))
         case "exit":
             process.exit()
     }
-    return result
+    return error("Unrecognizable command")
 }
 
 function error(description) {
