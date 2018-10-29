@@ -46,10 +46,7 @@ fn auth() -> Auth {
 6. Also enter it here (don't close the website yet):"#;
         println!("{}", help_message);
         let totp = prompt("TOTP");
-        let totp_code = avanza::totp_secret(&totp)
-            .unwrap()
-            .trim()
-            .to_string();
+        let totp_code = avanza::totp_secret(&totp).unwrap().trim().to_string();
         println!(
             r#"
 7. Copy {} into the "Fyll i engångskoden från appen." field.
@@ -86,6 +83,11 @@ fn prompt(what: &str) -> String {
 fn prompt_hidden(what: &str) -> String {
     let message = format!("{}: ", what);
     let password = rpassword::prompt_password_stdout(&message);
-    // If rpassword can't hide the password, just prompt like normal.
     password.unwrap_or_else(|_| prompt("Password"))
+}
+
+#[cfg(test)]
+mod tests {
+    // This file should only contain interfacing logic, not business logic. 
+    // Interface logic should be tested manually before git commit.
 }
