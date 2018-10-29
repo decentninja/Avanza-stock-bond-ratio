@@ -1,18 +1,12 @@
 /// The main commandline interface for the analysis.
-
-use std::collections::HashMap;
 use std::env;
-use std::io::{self, BufRead, BufReader, Write};
-use std::process::{Child, Command, Stdio};
+use std::io::{self, Write};
 extern crate rpassword;
 #[macro_use]
 extern crate serde_json;
 
-struct Auth {
-    totp: String,
-    username: String,
-    password: String,
-}
+mod analysis;
+mod avanza;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -25,8 +19,14 @@ fn main() {
     } else {
         auth()
     };
-    let stats = calculate_stats(&auth).unwrap(); // TODO: Exchange with result ? main
+    let stats = analysis::calculate_stats(&auth).unwrap(); // TODO: Exchange with result ? main
     println!("{}", stats.format());
+}
+
+pub struct Auth {
+    totp: String,
+    username: String,
+    password: String,
 }
 
 /// Commandline guide to setup credentials and activate a totp two factor code on the avanza website.
@@ -42,7 +42,10 @@ fn auth() -> Auth {
 6. Also enter it here (don't close the website yet):"#;
         println!("{}", help_message);
         let totp = prompt("TOTP");
-        let totp_code = avanza_totp_secret(&totp).unwrap().trim().to_string();
+        let totp_code = avanza::avanza_totp_secret(&totp)
+            .unwrap()
+            .trim()
+            .to_string();
         println!(
             r#"
 7. Copy {} into the "Fyll i engångskoden från appen." field.
@@ -65,8 +68,6 @@ fn auth() -> Auth {
         password,
     }
 }
-
-
 
 fn prompt(what: &str) -> String {
     print!("{}: ", what);

@@ -1,6 +1,8 @@
 /// Interactive interface
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Child, Command, Stdio};
 
-fn talk_command(
+pub fn talk_command(
     child: &mut Child,
     arguments: &[&str],
 ) -> Result<serde_json::Value, serde_json::Value> {
@@ -20,7 +22,7 @@ fn talk_command(
     }
 }
 
-fn avanza_totp_secret(totp: &str) -> Result<String, String> {
+pub fn avanza_totp_secret(totp: &str) -> Result<String, String> {
     let result = Command::new("node")
         .args(&["index.js", "totp", totp])
         .output()
@@ -32,11 +34,11 @@ fn avanza_totp_secret(totp: &str) -> Result<String, String> {
     Ok(String::from_utf8(result.stdout).expect("Unicode lol"))
 }
 
-fn avanza_talk(auth: &Auth) -> Result<Child, String> {
+pub fn avanza_talk(auth: &super::Auth) -> Result<Child, String> {
     avanza_totp_secret(&auth.totp)?;
     let mut child = Command::new("node")
         .args(&[
-            "index.js",      // TODO: Inline this with inclue_str instead so that we can cargo install it.
+            "index.js", // TODO: Inline this with inclue_str instead so that we can cargo install it.
             "talk",
             &auth.totp,
             &auth.username,

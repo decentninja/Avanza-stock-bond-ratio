@@ -1,12 +1,15 @@
 /// The main analysis
+use std::collections::HashMap;
+
+use super::avanza;
 
 #[derive(Default)]
-struct Stats {
+pub struct Stats {
     types: HashMap<String, f64>,
 }
 
 impl Stats {
-    fn format(&self) -> String {
+    pub fn format(&self) -> String {
         let total: f64 = self.types.values().sum();
         let lines = self
             .types
@@ -21,7 +24,7 @@ impl Stats {
             }).collect::<Vec<String>>()
             .join("\n");
         format!(
-            "Your portfolio consists of\n{}\n{:13} {:>13.1}",
+            "Your portfolio consists of\n{}\n{:13} {:>13.1}  sek",
             lines, "Total", total
         )
     }
@@ -31,9 +34,9 @@ impl Stats {
     }
 }
 
-fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
-    let mut child = avanza_talk(&auth).map_err(|e| json!(e))?;
-    let positions = talk_command(&mut child, &["getpositions"])?;
+pub fn calculate_stats(auth: &super::Auth) -> Result<Stats, serde_json::Value> {
+    let mut child = avanza::avanza_talk(&auth).map_err(|e| json!(e))?;
+    let positions = avanza::talk_command(&mut child, &["getpositions"])?;
     let mut stats = Stats::default();
     let mut not_supported = Vec::new();
     for category in positions["instrumentPositions"].as_array().unwrap() {
@@ -49,7 +52,7 @@ fn calculate_stats(auth: &Auth) -> Result<Stats, serde_json::Value> {
                     let value = position["value"].as_f64().unwrap();
                     let orderbookid = position["orderbookId"].as_str().unwrap();
                     let instrument =
-                        talk_command(&mut child, &["getinstrument", "FUND", orderbookid])?;
+                        avanza::talk_command(&mut child, &["getinstrument", "FUND", orderbookid])?;
                     stats.track(instrument["type"].as_str().unwrap().to_string(), value);
                 }
             }
