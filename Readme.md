@@ -14,9 +14,8 @@ Total               81104.3  sek.
 1. Install Nodejs version > v10.12.0
 2. Install Rust version > 1.30.1 (2018-09-20)
 3. Clone the repo
-4. The repo run `cargo install`
-5. Run `avanza-additional-analysis`
-6. Follow the on-screen instructions
+4. The repo run `cargo run`
+5. Follow the on-screen instructions
 
 # Development Notes
 The application consists of two parts.
@@ -24,10 +23,12 @@ The application consists of two parts.
 * A Nodejs script, that that calls Github user Fhqvst's Avanza module.
 
 The Rust executable runs the Nodejs script as a child process.
-The two parts talk with each other over a stdin/out/err readline interface.
+The two parts talk with each other over a stdin/stdout/stderr readline interface.
 
-# TODO
-[ ] Complete all todos in the repo
-[ ] Go over documentation once again, add whats missing from the todos
-[ ] Make compiled binaries for all platsforms.
-[ ] Add tests
+## Contributions
+Run before committing.
+```
+cargo tests
+cargo fmt
+cargo clippy
+```

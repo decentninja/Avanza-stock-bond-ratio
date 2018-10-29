@@ -24,7 +24,7 @@ impl Stats {
             }).collect::<Vec<String>>()
             .join("\n");
         format!(
-            "Your portfolio consists of\n{}\n{:13} {:>13.1}  sek",
+            "Your portfolio consists of\n{}\n{:13} {:>13.1}  sek.",
             lines, "Total", total
         )
     }
@@ -35,8 +35,8 @@ impl Stats {
 }
 
 pub fn calculate_stats(auth: &super::Auth) -> Result<Stats, serde_json::Value> {
-    let mut child = avanza::avanza_talk(&auth).map_err(|e| json!(e))?;
-    let positions = avanza::talk_command(&mut child, &["getpositions"])?;
+    let mut talk = avanza::Talk::new(&auth).map_err(|e| serde_json::json!(e))?;
+    let positions = talk.command(&["getpositions"])?;
     let mut stats = Stats::default();
     let mut not_supported = Vec::new();
     for category in positions["instrumentPositions"].as_array().unwrap() {
@@ -51,8 +51,7 @@ pub fn calculate_stats(auth: &super::Auth) -> Result<Stats, serde_json::Value> {
                 for position in category["positions"].as_array().unwrap() {
                     let value = position["value"].as_f64().unwrap();
                     let orderbookid = position["orderbookId"].as_str().unwrap();
-                    let instrument =
-                        avanza::talk_command(&mut child, &["getinstrument", "FUND", orderbookid])?;
+                    let instrument = talk.command(&["getinstrument", "FUND", orderbookid])?;
                     stats.track(instrument["type"].as_str().unwrap().to_string(), value);
                 }
             }
