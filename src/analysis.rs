@@ -29,8 +29,8 @@ impl Stats {
         )
     }
 
-    fn track(&mut self, name: String, value: f64) {
-        *self.types.entry(name).or_default() += value;
+    fn track(&mut self, name: &str, value: f64) {
+        *self.types.entry(name.to_string()).or_default() += value;
     }
 }
 
@@ -44,7 +44,7 @@ pub fn calculate_stats(auth: &super::Auth) -> Result<Stats, serde_json::Value> {
             "STOCK" => {
                 for position in category["positions"].as_array().unwrap() {
                     let value = position["value"].as_f64().unwrap();
-                    stats.track("Aktier".to_string(), value);
+                    stats.track("Aktier", value);
                 }
             }
             "FUND" => {
@@ -52,7 +52,7 @@ pub fn calculate_stats(auth: &super::Auth) -> Result<Stats, serde_json::Value> {
                     let value = position["value"].as_f64().unwrap();
                     let orderbookid = position["orderbookId"].as_str().unwrap();
                     let instrument = talk.command(&["getinstrument", "FUND", orderbookid])?;
-                    stats.track(instrument["type"].as_str().unwrap().to_string(), value);
+                    stats.track(instrument["type"].as_str().unwrap(), value);
                 }
             }
             instrument_type => not_supported.push(instrument_type),
@@ -65,4 +65,23 @@ pub fn calculate_stats(auth: &super::Auth) -> Result<Stats, serde_json::Value> {
         );
     }
     Ok(stats)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formating() {
+        let mut stats = Stats::default();
+        stats.track("Test", 10004.);
+        stats.track("Test", 1231.23);
+        stats.track("Test", 5243.51);
+        stats.track("Bla", 3424.);
+        stats.track("Bla", 23464.);
+        stats.track("Bla", 32.45);
+        stats.track("Blu", 0.);
+        let format = stats.format();
+        println!("Format example:\n{}", format);
+    }
 }

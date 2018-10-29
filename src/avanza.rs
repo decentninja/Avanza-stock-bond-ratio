@@ -66,8 +66,23 @@ impl Talk {
     }
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use super::*;
 
-    fn totp() {}
+    #[test]
+    fn totp() {
+        assert!(totp_secret("SDFLKJ2545DF").is_ok());
+    }
+
+    #[test]
+    fn badconnect() {
+        use Auth;
+        let talk = Talk::new(&Auth {
+            totp: "SDFSDF345".to_string(),
+            username: "bla".to_string(),
+            password: "bajs".to_string(),
+        });
+        assert!(talk.is_err());
+    }
 }
