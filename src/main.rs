@@ -2,15 +2,17 @@
 use std::env;
 use std::io::{self, Write};
 extern crate rpassword;
-#[macro_use]
 extern crate serde_json;
 
 mod analysis;
 mod avanza;
 
-fn main() {
+fn main() -> Result<(), serde_json::Value> {
     let args: Vec<String> = env::args().collect();
-    let auth = if args.len() == 5 && args[1] == "auth" {
+    let auth = if args[1] == "auth" {
+        if args.len() != 5 {
+            return Err(serde_json::json!("You need to pass 4 arguments to auth!"));
+        }
         Auth {
             totp: args[2].clone(),
             username: args[3].clone(),
@@ -19,10 +21,12 @@ fn main() {
     } else {
         auth()
     };
-    let stats = analysis::calculate_stats(&auth).unwrap(); // TODO: Exchange with result ? main
+    let stats = analysis::calculate_stats(&auth)?;
     println!("{}", stats.format());
+    Ok(())
 }
 
+/// Avanza Credentials
 pub struct Auth {
     totp: String,
     username: String,
@@ -42,7 +46,7 @@ fn auth() -> Auth {
 6. Also enter it here (don't close the website yet):"#;
         println!("{}", help_message);
         let totp = prompt("TOTP");
-        let totp_code = avanza::avanza_totp_secret(&totp)
+        let totp_code = avanza::totp_secret(&totp)
             .unwrap()
             .trim()
             .to_string();
@@ -69,6 +73,7 @@ fn auth() -> Auth {
     }
 }
 
+/// Ask the user a question with a visible answer. For sensitive questions such as passwords, consider prompt_hidden.
 fn prompt(what: &str) -> String {
     print!("{}: ", what);
     io::stdout().flush().unwrap();
@@ -77,6 +82,7 @@ fn prompt(what: &str) -> String {
     buffer.trim().to_string()
 }
 
+/// Try to ask the user a question with a hidden answer, if the terminal does not support this, run prompt.
 fn prompt_hidden(what: &str) -> String {
     let message = format!("{}: ", what);
     let password = rpassword::prompt_password_stdout(&message);
